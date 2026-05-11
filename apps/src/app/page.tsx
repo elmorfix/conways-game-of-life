@@ -2,8 +2,10 @@
 
 import { useReducer, useRef, useEffect, useCallback } from 'react';
 import type { Grid } from '@conways-game-of-life/types';
-import { createGrid, toggleCell, getCell } from '@conways-game-of-life/sim';
+import { createGrid, toggleCell, getCell, step } from '@conways-game-of-life/sim';
+import { Play, Pause, SkipForward } from 'lucide-react';
 import { GridSizeForm } from './components/GridSizeForm';
+import { useSimulationLoop } from './hooks/useSimulationLoop';
 
 const DEFAULT_WIDTH = 30;
 const DEFAULT_HEIGHT = 30;
@@ -38,6 +40,12 @@ function simReducer(state: SimState, action: SimAction): SimState {
       return { ...state, running: action.running };
     case 'setGenPerSec':
       return { ...state, genPerSec: action.genPerSec };
+    case 'tick':
+      return {
+        ...state,
+        grid: step(state.grid),
+        genCount: state.genCount + 1,
+      };
     case 'toggleCell':
       return {
         ...state,
@@ -83,10 +91,13 @@ function computeCellSize(
 
 export default function GamePage() {
   const [state, dispatch] = useReducer(simReducer, undefined, initState);
-  const { grid, genCount } = state;
+  const { grid, running, genCount, genPerSec } = state;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleTick = useCallback(() => dispatch({ type: 'tick' }), []);
+  useSimulationLoop(running, genPerSec, handleTick);
 
   const cellSize = containerRef.current
     ? computeCellSize(
@@ -211,7 +222,6 @@ export default function GamePage() {
             />
           </section>
 
-          {/* Placeholder sections for future controls (Stories 3.3–3.5) */}
           <section>
             <h2 className="mb-2 text-sm font-medium text-neutral-400">
               Controls
@@ -219,16 +229,25 @@ export default function GamePage() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled
-                className="rounded bg-neutral-800 px-3 py-1 text-sm text-neutral-500"
+                data-testid="play-pause-btn"
+                aria-label={running ? 'Pause simulation' : 'Play simulation'}
+                onClick={() =>
+                  dispatch({ type: 'setRunning', running: !running })
+                }
+                className="inline-flex items-center gap-1.5 rounded bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
               >
-                Play
+                {running ? <Pause size={14} /> : <Play size={14} />}
+                {running ? 'Pause' : 'Play'}
               </button>
               <button
                 type="button"
-                disabled
-                className="rounded bg-neutral-800 px-3 py-1 text-sm text-neutral-500"
+                data-testid="step-btn"
+                aria-label="Step one generation"
+                disabled={running}
+                onClick={() => dispatch({ type: 'tick' })}
+                className="inline-flex items-center gap-1.5 rounded bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 hover:bg-neutral-700 disabled:text-neutral-500 disabled:hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
               >
+                <SkipForward size={14} />
                 Step
               </button>
               <button
