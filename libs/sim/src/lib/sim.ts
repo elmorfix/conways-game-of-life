@@ -7,4 +7,4 @@ export {
   clearGrid,
 } from './grid.js';
 
-export type { Grid } from 'types';
+export type { Grid } from '@conways-game-of-life/types';

@@ -1,4 +1,4 @@
-import type { Grid } from 'types';
+import type { Grid } from '@conways-game-of-life/types';
 
 export function createGrid(width: number, height: number): Grid {
   if (width <= 0 || height <= 0) {
