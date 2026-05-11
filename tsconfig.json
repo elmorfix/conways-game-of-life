@@ -1,0 +1,31 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./apps-e2e"
+    },
+    {
+      "path": "./apps"
+    },
+    {
+      "path": "./apps/api-e2e"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./libs/sim"
+    },
+    {
+      "path": "./libs/types"
+    },
+    {
+      "path": "./libs/ui"
+    },
+    {
+      "path": "./libs/api-client"
+    }
+  ]
+}
