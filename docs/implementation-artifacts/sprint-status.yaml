@@ -44,15 +44,15 @@ development_status:
   1-6-branch-protection-and-auto-approve-workflow: done
   epic-1-retrospective: done
 
-  epic-2: in-progress
-  2-1-grid-types-and-primitives-with-tests: review
-  2-2-conway-rules-engine-step-with-rule-by-rule-tests: review
-  2-3-edge-case-and-boundary-tests-for-step: review
-  2-4-randomize-with-injectable-rng-and-tests: backlog
-  epic-2-retrospective: optional
+  epic-2: done
+  2-1-grid-types-and-primitives-with-tests: done
+  2-2-conway-rules-engine-step-with-rule-by-rule-tests: done
+  2-3-edge-case-and-boundary-tests-for-step: done
+  2-4-randomize-with-injectable-rng-and-tests: done
+  epic-2-retrospective: done
 
-  epic-3: backlog
-  3-1-page-shell-canvas-size-form-and-responsive-layout: backlog
+  epic-3: in-progress
+  3-1-page-shell-canvas-size-form-and-responsive-layout: ready-for-dev
   3-2-canvas-render-and-click-tap-to-toggle-cells: backlog
   3-3-play-pause-step-controls-and-generation-counter: backlog
   3-4-clear-and-randomize-controls: backlog

@@ -5,7 +5,17 @@ import {
   setCell,
   toggleCell,
   clearGrid,
+  randomizeGrid,
 } from './grid.js';
+
+function mulberry32(seed: number): () => number {
+  return () => {
+    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 describe('createGrid', () => {
   it('produces cells.length === width * height, all zero', () => {
@@ -187,5 +197,50 @@ describe('getCell', () => {
     expect(getCell(g, 2, 0)).toBe(1);
     expect(getCell(g, 0, 2)).toBe(1);
     expect(getCell(g, 2, 2)).toBe(1);
+  });
+});
+
+describe('randomizeGrid', () => {
+  it('produces byte-identical output with the same seed (determinism)', () => {
+    const g = createGrid(10, 10);
+    const a = randomizeGrid(g, 0.3, mulberry32(42));
+    const b = randomizeGrid(g, 0.3, mulberry32(42));
+    expect(a.cells).toEqual(b.cells);
+  });
+
+  it('produces ~30% live cells with density 0.3 on a large grid', () => {
+    const g = createGrid(100, 100);
+    const result = randomizeGrid(g, 0.3, mulberry32(123));
+    const liveCount = result.cells.reduce((sum, c) => sum + c, 0);
+    const ratio = liveCount / (100 * 100);
+    expect(ratio).toBeGreaterThanOrEqual(0.25);
+    expect(ratio).toBeLessThanOrEqual(0.35);
+  });
+
+  it('density = 0 produces all-dead grid', () => {
+    const g = createGrid(10, 10);
+    const result = randomizeGrid(g, 0, mulberry32(1));
+    expect(result.cells.every((c) => c === 0)).toBe(true);
+  });
+
+  it('density = 1 produces all-alive grid', () => {
+    const g = createGrid(10, 10);
+    const result = randomizeGrid(g, 1, mulberry32(1));
+    expect(result.cells.every((c) => c === 1)).toBe(true);
+  });
+
+  it('does not mutate the original grid', () => {
+    const g = createGrid(10, 10);
+    const cellsBefore = new Uint8Array(g.cells);
+    randomizeGrid(g, 0.5, mulberry32(99));
+    expect(g.cells).toEqual(cellsBefore);
+  });
+
+  it('default density produces a mix of alive and dead cells', () => {
+    const g = createGrid(20, 20);
+    const result = randomizeGrid(g, undefined, mulberry32(77));
+    const liveCount = result.cells.reduce((sum, c) => sum + c, 0);
+    expect(liveCount).toBeGreaterThan(0);
+    expect(liveCount).toBeLessThan(20 * 20);
   });
 });
