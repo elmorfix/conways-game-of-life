@@ -171,6 +171,65 @@ describe('Immutability', () => {
   });
 });
 
+describe('Edge cases', () => {
+  it('empty grid stays empty (no spontaneous life)', () => {
+    const g = createGrid(5, 5);
+    const next = step(g);
+    expect(next.cells.every((c) => c === 0)).toBe(true);
+  });
+
+  it('all-alive 3×3 grid: corners survive, edges and center die', () => {
+    let g = createGrid(3, 3);
+    for (let y = 0; y < 3; y++) {
+      for (let x = 0; x < 3; x++) {
+        g = setCell(g, x, y, 1);
+      }
+    }
+    const next = step(g);
+    // Corners (3 neighbors each) survive
+    expect(getCell(next, 0, 0)).toBe(1);
+    expect(getCell(next, 2, 0)).toBe(1);
+    expect(getCell(next, 0, 2)).toBe(1);
+    expect(getCell(next, 2, 2)).toBe(1);
+    // Edges (5 neighbors each) die
+    expect(getCell(next, 1, 0)).toBe(0);
+    expect(getCell(next, 0, 1)).toBe(0);
+    expect(getCell(next, 2, 1)).toBe(0);
+    expect(getCell(next, 1, 2)).toBe(0);
+    // Center (8 neighbors) dies
+    expect(getCell(next, 1, 1)).toBe(0);
+  });
+
+  it('corner cell (0,0) with no neighbors dies', () => {
+    let g = createGrid(5, 5);
+    g = setCell(g, 0, 0, 1);
+    const next = step(g);
+    expect(getCell(next, 0, 0)).toBe(0);
+    expect(liveCells(next)).toEqual([]);
+  });
+
+  it('far corner cell (width-1, height-1) with no neighbors dies', () => {
+    let g = createGrid(5, 5);
+    g = setCell(g, 4, 4, 1);
+    const next = step(g);
+    expect(getCell(next, 4, 4)).toBe(0);
+    expect(liveCells(next)).toEqual([]);
+  });
+
+  it('1×1 grid: live cell dies (no neighbors)', () => {
+    let g = createGrid(1, 1);
+    g = setCell(g, 0, 0, 1);
+    const next = step(g);
+    expect(getCell(next, 0, 0)).toBe(0);
+  });
+
+  it('1×1 grid: dead cell stays dead', () => {
+    const g = createGrid(1, 1);
+    const next = step(g);
+    expect(getCell(next, 0, 0)).toBe(0);
+  });
+});
+
 describe('conwayRules RuleSet object', () => {
   it('has correct id and name', () => {
     expect(conwayRules.id).toBe('conway');
