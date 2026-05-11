@@ -3,3 +3,9 @@ export interface Grid {
   readonly height: number;
   readonly cells: Uint8Array;
 }
+
+export interface RuleSet {
+  readonly id: string;
+  readonly name: string;
+  step(grid: Grid): Grid;
+}
