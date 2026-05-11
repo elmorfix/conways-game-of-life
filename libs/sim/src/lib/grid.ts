@@ -47,3 +47,16 @@ export function toggleCell(grid: Grid, x: number, y: number): Grid {
 export function clearGrid(grid: Grid): Grid {
   return { width: grid.width, height: grid.height, cells: new Uint8Array(grid.width * grid.height) };
 }
+
+export function randomizeGrid(
+  grid: Grid,
+  density = 0.3,
+  rng: () => number = Math.random
+): Grid {
+  const { width, height } = grid;
+  const cells = new Uint8Array(width * height);
+  for (let i = 0; i < cells.length; i++) {
+    cells[i] = rng() < density ? 1 : 0;
+  }
+  return { width, height, cells };
+}
