@@ -1,0 +1,24 @@
+# Auto-approve PRs into main (Story 1.6).
+# Fires on every PR and immediately posts an approving review via github-actions[bot].
+# Branch protection still blocks merge until the four required checks (lint, typecheck,
+# test, e2e) pass — the auto-approve satisfies the "1 approving review" requirement
+# while checks enforce the quality gate.
+
+name: Auto Approve
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  pull-requests: write
+
+jobs:
+  auto-approve:
+    name: auto-approve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Auto-approve PR
+        uses: hmarr/auto-approve-action@v4
