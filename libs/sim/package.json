@@ -1,5 +1,5 @@
 {
-  "name": "sim",
+  "name": "@conways-game-of-life/sim",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -16,6 +16,7 @@
     }
   },
   "dependencies": {
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "@conways-game-of-life/types": "workspace:*"
   }
 }

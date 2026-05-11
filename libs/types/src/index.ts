@@ -1,1 +1,1 @@
-export * from './lib/types.js';
+export type { Grid } from './lib/types.js';
