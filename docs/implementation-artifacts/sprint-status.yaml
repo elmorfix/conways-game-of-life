@@ -48,7 +48,7 @@ development_status:
   2-1-grid-types-and-primitives-with-tests: review
   2-2-conway-rules-engine-step-with-rule-by-rule-tests: review
   2-3-edge-case-and-boundary-tests-for-step: review
-  2-4-randomize-with-injectable-rng-and-tests: backlog
+  2-4-randomize-with-injectable-rng-and-tests: review
   epic-2-retrospective: optional
 
   epic-3: backlog
