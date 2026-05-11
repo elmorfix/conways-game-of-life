@@ -1,0 +1,11 @@
+{
+  "name": "sim",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/sim/src",
+  "projectType": "library",
+  "tags": [
+    "scope:sim"
+  ],
+  "// targets": "to see all targets run: nx show project sim --web",
+  "targets": {}
+}
