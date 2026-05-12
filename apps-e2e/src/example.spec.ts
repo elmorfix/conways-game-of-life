@@ -94,17 +94,14 @@ test.describe('Conway\'s Game of Life — Happy Path', () => {
     const slider = page.getByTestId('speed-slider');
     await expect(page.getByTestId('speed-value')).toHaveText('10');
 
-    // Set slider value programmatically (fill() is unreliable for range inputs in Webkit)
-    await slider.evaluate((el: HTMLInputElement, val: string) => {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype, 'value'
-      )?.set;
-      nativeInputValueSetter?.call(el, val);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }, '30');
+    await slider.fill('30');
+    await slider.press('ArrowRight');
 
-    await expect(page.getByTestId('speed-value')).toHaveText('30');
+    await expect
+      .poll(async () => page.getByTestId('speed-value').textContent(), {
+        timeout: 2000,
+      })
+      .toBe('31');
   });
 
   test('grid resize form works with valid input', async ({ page }) => {
