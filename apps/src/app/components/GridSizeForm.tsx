@@ -56,6 +56,7 @@ export function GridSizeForm({
   return (
     <form
       onSubmit={handleSubmit}
+      noValidate
       data-testid="grid-size-form"
       className="flex flex-wrap items-end gap-2"
     >

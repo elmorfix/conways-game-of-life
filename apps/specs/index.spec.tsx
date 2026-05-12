@@ -2,6 +2,18 @@ import React from 'react';
 import { render } from '@testing-library/react';
 import Page from '../src/app/page';
 
+class MockWorker {
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  postMessage = jest.fn();
+  terminate = jest.fn();
+  addEventListener = jest.fn();
+  removeEventListener = jest.fn();
+  dispatchEvent = jest.fn(() => true);
+  onerror = null;
+  onmessageerror = null;
+}
+Object.defineProperty(globalThis, 'Worker', { value: MockWorker });
+
 HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
   fillRect: jest.fn(),
   clearRect: jest.fn(),
