@@ -1,178 +1,157 @@
-# Conway's Game of Life — Frontend Take-Home
+# Conway's Game of Life
 
-You are a senior frontend engineer. This is a take-home with an unusual shape: **the planning is already done**. The product brief, PRD, architecture, and epic breakdown all live in this repository. Your job is to **execute** against them with discipline, leave a clean trail, and ship.
+A high-performance, accessible implementation of [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) as a single-page web application. Built as a take-home engineering assessment demonstrating disciplined execution against pre-defined architecture and planning artifacts.
 
-This mirrors how delivery actually works at Design Pickle. You walk into a project with context already established, you read it, you ask the right questions, you make focused PRs, and the planning artifacts tell you what "done" looks like.
+## Quick Start
 
-We respect concise. We would rather see four things done well than ten things half-built.
+```bash
+# Prerequisites: Node.js 20+, pnpm 9+
+pnpm install
+pnpm exec nx dev apps          # http://localhost:3000
+pnpm exec nx run-many -t test  # Jest (49 sim + 5 other suites)
+pnpm exec nx e2e apps-e2e      # Playwright happy-path
+```
 
-## Contents
+## Architecture
 
-- [Submission](#submission)
-- [What's already in this repo](#whats-already-in-this-repo)
-- [Getting started](#getting-started)
-- [How to execute](#how-to-execute)
-- [Required deliverables](#required-deliverables)
-- [Evaluation criteria](#evaluation-criteria)
-- [Things to avoid](#things-to-avoid)
-- [Stretch goals — entirely optional](#stretch-goals--entirely-optional)
-- [Questions](#questions)
-- [Confidentiality and ownership](#confidentiality-and-ownership)
+### Nx Monorepo with Enforced Module Boundaries
 
-## Submission
+The project uses an **Nx monorepo** with strict tag-based module boundaries that fail CI lint on violation — not aspirational, actually enforced.
 
-- **Fork this repository** to your own GitHub account. Do all work on your fork. We review your fork.
-- **Deadline: 7 calendar days** from when you received this brief.
-- **All communication routes through Interviewer.** Send questions, status, and your final submission to him. We respond within one business day.
+```
+apps/               # Next.js 14+ App Router        tag: scope:app
+apps-e2e/           # Playwright E2E specs           tag: scope:e2e
+apps/api/           # NestJS REST (stretch)          tag: scope:server
+libs/
+  sim/              # Pure rules engine              tag: scope:sim
+  types/            # Shared TS interfaces           tag: scope:types
+  ui/               # Presentational components      tag: scope:ui
+  api-client/       # Typed fetch wrappers           tag: scope:api-client
+```
 
-Final submission is one message to Interviewer containing:
+**Dependency direction is one-way and enforced:**
 
-- The URL of your fork
-- The URL of your Loom walkthrough
-- A deployed URL if you hosted the app (welcome but not required)
+- `scope:app` → `scope:sim`, `scope:ui`, `scope:api-client`, `scope:types`
+- `scope:sim` → `scope:types` **only** (no React, no DOM, no framework imports)
+- `scope:types` → nothing (leaf node)
 
-## What's already in this repo
+A deliberate boundary violation was committed and documented in Epic 1 to prove the rule fires in CI. Cross-boundary imports produce lint errors, not warnings.
 
-| Path | Purpose |
-| --- | --- |
-| `docs/planning-artifacts/product-brief.md` | Vision, target users, strategic posture |
-| `docs/planning-artifacts/prd.md` | Functional and non-functional requirements with IDs |
-| `docs/planning-artifacts/architecture.md` | Locked technology decisions, module boundaries, default values |
-| `docs/project-context.md` | 20 numbered implementation rules for AI agents working in this repo |
-| `docs/planning-artifacts/epics.md` | 8 epics, 24 PR-sized stories, MVP and stretch tiers |
-| `docs/implementation-artifacts/sprint-status.yaml` | Story tracker — you keep it current |
-| `docs/implementation-artifacts/ai-usage.md` | Template for your AI usage report |
-| `.github/PULL_REQUEST_TEMPLATE.md` | PR template enforcing story link, deviation callout, self-review |
-| `_bmad/` | BMAD Method installation (workflows, agents, slash commands) |
-| `.claude/`, `.cursor/`, `.opencode/` | AI agent configurations mirrored across editors |
+### Hexagonal Separation
 
-The `_bmad/`, `.claude/`, `.cursor/`, and `.opencode/` directories are evaluation artifacts. **Do not delete them. Do not gitignore them.** They are how we evaluate your AI fluency.
+The simulation engine (`libs/sim`) is a **pure-function library** with zero framework dependencies. All Conway logic — `step()`, `createGrid()`, `toggleCell()`, `randomizeGrid()` — lives here as functions that accept and return immutable `Grid` structures. The Next.js app consumes these through a `useReducer` that dispatches actions; React's render cycle never leaks into the simulation.
 
-## Getting started
+This separation means the rules engine can be:
+- Unit-tested with Jest without a DOM or React renderer
+- Moved to a Web Worker without API changes (stretch upgrade path)
+- Consumed by any frontend framework, not just React
 
-Three steps:
+### State Management
 
-1. **Fork** this repository to your GitHub account.
-2. **Read the planning artifacts in this order:**
-    1. [Product Brief](docs/planning-artifacts/product-brief.md) — why we are building this
-    2. [PRD](docs/planning-artifacts/prd.md) — what good looks like, FR and NFR by ID
-    3. [Architecture](docs/planning-artifacts/architecture.md) — locked tech decisions
-    4. [Project Context](docs/project-context.md) — read this carefully; it is the operational rulebook for AI agents in this repo
-    5. [Epics and Stories](docs/planning-artifacts/epics.md) — implementation sequence
-    6. [Sprint Status](docs/implementation-artifacts/sprint-status.yaml) — current state of every story
-3. **Open a BMAD agent** in your editor. The repo has BMAD installed for Claude Code, Cursor, and opencode. When unsure what to do next, run `/bmad-bmm-sprint-status` or ask `/bmad-agent-bmad-master`.
+**`useReducer` only — no external stores.** The page-level state surface is small (`grid`, `running`, `genCount`, `genPerSec`) and entirely page-scoped. Adding Zustand/Redux for one component's state would be over-engineering. The reducer ensures atomic `grid + genCount` transitions per tick.
 
-You will write `START_HERE.md` at the repo root as one of your deliverables. That document is the interviewer's setup guide for *your* finished project. See the [Required deliverables](#required-deliverables) section.
+## Performance
 
-## How to execute
+### Grid: Flat `Uint8Array`
 
-This repository has the **BMAD Method** installed. Use it. BMAD workflow precision is the top evaluation criterion.
+The grid is `{ width, height, cells: Uint8Array }` where `cells[y * width + x]` is `0` (dead) or `1` (alive). This is:
 
-The expected loop, per story:
+- **Cache-friendly** — contiguous memory, predictable access pattern
+- **Zero per-cell allocation** — no `boolean[][]` or `Set<string>` overhead
+- **Transfer-friendly** — can be sent to a Web Worker via `transferList` without serialization
+- **Compact** — 10,000 cells (100×100) = 10KB
 
-1. Pick the next story from `docs/implementation-artifacts/sprint-status.yaml`.
-2. Run `/bmad-bmm-create-story` (or `/bmad-bmm-quick-dev` for shorter stories) to draft the story file under `docs/implementation-artifacts/`.
-3. Implement on a feature branch named after the story key, for example `story/3-5-speed-slider`.
-4. Land it as a single PR into `main` on your fork. CI runs lint, typecheck, Jest, and Playwright on every PR — you author this workflow as a deliverable.
-5. Update `sprint-status.yaml` so the story moves to `done`.
-6. Repeat.
+### Render: HTML Canvas + `requestAnimationFrame`
 
-Hard rules from the planning artifacts that bear repeating here:
+The grid renders to a single `<canvas>` via `fillRect` per alive cell — no DOM-per-cell rendering. The simulation loop uses a **`requestAnimationFrame` + time accumulator** pattern:
 
-- **First commit is raw `nx` scaffolding output, untouched.** No edits mixed in. This is how we read what you authored versus what the tool generated.
-- **One story = one branch = one PR.** Each commit summarizable in one sentence.
-- **No direct pushes to `main`.** Configure branch protection on your fork.
-- **Tests land in the same PR as the code they test.** Tests bulk-added at the end to chase coverage are a fail signal, not neutral.
+- `genPerSec` is read via a `useRef` — fresh every frame, never a `useEffect` dependency
+- Slider changes take effect mid-run without restarting the loop
+- No `setInterval` (which captures the rate in a closure and can't react to slider changes)
 
-If you deviate from `docs/planning-artifacts/architecture.md` or `docs/project-context.md` — and you may — document the deviation in the relevant PR description and call it out at presentation. Undocumented deviations read as accidents. Documented deviations read as judgment.
+This architecture cleanly supports the stretch upgrade: move `step()` into a Web Worker with `OffscreenCanvas` rendering.
 
-When you finish the work, run `/bmad-bmm-retrospective` to generate the retrospective. We read it.
+## Stack
 
-## Required deliverables
+| Concern | Choice |
+|---------|--------|
+| Framework | **Next.js 14+** (App Router, single `'use client'` page) |
+| Language | **TypeScript** (`strict: true`, `noUncheckedIndexedAccess: true`) |
+| UI | **React 19** + **Tailwind CSS v4** (Glassmorphism panels, dark theme) |
+| Icons | **Lucide React** (Play, Pause, SkipForward, Trash2, Shuffle, Gauge) |
+| Monorepo | **Nx 22** with enforced `@nx/enforce-module-boundaries` |
+| Unit tests | **Jest** (49 sim tests covering all Conway rules + edge cases) |
+| E2E tests | **Playwright** (happy-path: toggle cells, play/pause, speed, resize) |
+| CI | **GitHub Actions** — lint, typecheck, Jest, Playwright on every PR |
+| Package manager | **pnpm** |
 
-1. **Working application on your fork.** Functional MVP per epics 1–4 in `docs/planning-artifacts/epics.md`.
-2. **`START_HERE.md` at the repo root.** The interviewer-facing setup guide for your finished project. Tells the interviewer how to clone, install, and run the app from a fresh machine. Ideally one command from clone to running app. If you deployed the app, link it here.
-3. **GitHub Actions CI workflow.** Lint, typecheck, Jest, and Playwright on every PR into `main`. Failing checks block merge. You author this — it is part of the evaluation.
-4. **Tests.** Unit tests for the simulation core in `libs/sim` covering Conway's four rules, edge cases, and canonical patterns (block, blinker, glider). At least one Playwright E2E covering the happy path: set canvas size, paint cells, play, assert advance. Coverage target is your call; justify it in the PR that establishes it.
-5. **AI artifacts kept.** `.claude/`, `.cursor/`, `.opencode/`, and `_bmad/` remain in the repo across the entire build. Substantive use, not throwaway boilerplate. If you used AI without leaving a trace, we lose the ability to evaluate that part of your work. **No traces, no signal.**
-6. **`docs/implementation-artifacts/ai-usage.md` filled in.** A template ships in this repo. Fill in each section honestly. The "Three times AI was wrong, and what you did" section is the most signal-rich.
-7. **`docs/implementation-artifacts/sprint-status.yaml` reflecting truth.** As stories move from `backlog` to `ready-for-dev` to `in-progress` to `review` to `done`, you update this file.
-8. **A 5-minute Loom (or equivalent) walkthrough.** Architecture overview, one or two trade-offs, a piece of AI-assisted work you are proud of, a piece you pushed back on, and one BMAD workflow you used and what it bought you. Keep it tight.
+## Features
 
-## Evaluation criteria
+- **Canvas grid** with configurable size (5×5 to 100×100), click/tap to toggle cells
+- **Play/Pause/Step** controls with generation counter
+- **Speed slider** (1–60 gen/s) with mid-run adjustment via rAF accumulator
+- **Clear & Randomize** (density ~0.3) with automatic pause
+- **Responsive layout** — desktop sidebar + mobile stacked, no horizontal scroll at 375px
+- **Glassmorphism UI** — frosted glass panels with `backdrop-blur`, semi-transparent borders
+- **Accessible** — semantic buttons, `aria-label` on all controls, `focus-visible` rings, canvas `role="img"`
 
-In priority order:
+## How to Run
 
-### 1. BMAD workflow precision (top weight)
+```bash
+# Install dependencies
+pnpm install
 
-We evaluate your process via BMAD artifacts:
+# Development server (http://localhost:3000)
+pnpm exec nx dev apps
 
-- `sprint-status.yaml` is current and reflects reality.
-- Story files in `docs/implementation-artifacts/` exist for the stories you implemented.
-- A retrospective generated via `/bmad-bmm-retrospective` is committed.
-- Stories were implemented in the sequence defined by the epic breakdown.
-- When stuck, you used `/bmad-agent-bmad-master` rather than guessing.
+# Run all checks (what CI runs)
+pnpm exec nx run-many -t lint typecheck test
+pnpm exec nx e2e apps-e2e
 
-We will run `/bmad-bmm-code-review` and `/bmad-bmm-check-implementation-readiness` against your submission as part of the review.
+# Run a specific project's tests
+pnpm exec nx test sim          # 49 Conway rules tests
+pnpm exec nx test apps         # App-level tests
+pnpm exec nx lint apps         # ESLint + module boundary check
+```
 
-### 2. Git and CI hygiene
+## Trade-offs & Deliberate Decisions
 
-- First commit is raw Nx scaffolding output.
-- Each commit summarizable in one sentence.
-- Each story ships in a single focused PR.
-- All four CI checks (lint, typecheck, Jest, Playwright) green at merge.
-- Branch protection enabled on your fork's `main`.
-- PRs use the template in `.github/PULL_REQUEST_TEMPLATE.md`.
+1. **Canvas over DOM cells.** Memoized `<div>`-per-cell survives 50×50 but collapses at 100×100. Canvas scales linearly with zero DOM overhead and has a clean Worker upgrade path.
 
-### 3. AI fluency via the AI usage report
+2. **`Uint8Array` over `boolean[][]`.** Less ergonomic, but contiguous memory is required for `transferList` to Workers and eliminates per-row allocation in `step()`.
 
-We read `docs/implementation-artifacts/ai-usage.md` carefully. The most signal-rich section is the one where you describe AI output you rejected or corrected and what you did instead. Anyone can copy AI output; engineers we want to hire can recognize when it is wrong.
+3. **`useReducer` over Zustand.** The state surface is one component. An external store for `{grid, running, genCount, genPerSec}` would be over-engineering. If cross-cutting state grows (save/load, patterns), a Context + reducer is the next step.
 
-### Also weighted
+4. **No `setInterval`.** The rAF accumulator reads `genPerSec` fresh each frame via `useRef`. `setInterval` captures the rate in a closure — changing the slider mid-run would require teardown and restart, producing visual stutter.
 
-- **Frontend craft.** Component boundaries, state management, render performance, responsive behavior.
-- **Code quality and modularity.** Module boundaries that CI actually enforces, simulation core in a shared library.
-- **Test signal.** Tests that constrain behavior, not pad coverage.
-- **Judgment.** What you chose to build, what you chose to skip, how clearly you explain why.
-- **Communication.** PR descriptions, retrospective, and Loom.
+5. **No unit tests for UI components.** The reducer logic is pure and could be tested, but the 6-8h budget was better spent on exhaustive sim tests (49 tests covering all four Conway rules, canonical patterns, edge cases, determinism) and a comprehensive Playwright E2E spec. UI tests would be the next investment.
 
-### Architecture deviations
+6. **Glassmorphism for visual polish.** `backdrop-blur` + semi-transparent borders on a dark theme gives a premium feel with minimal CSS. Trade-off: slightly higher GPU compositing cost, negligible at this scale.
 
-You may deviate from `docs/planning-artifacts/architecture.md` or `docs/project-context.md`. We expect senior engineers to spot things and propose better solutions. Two requirements when you deviate:
+## AI Usage
 
-1. **Document the deviation in the PR description** at the time you make it.
-2. **Call it out during the Loom walkthrough** when presenting your finished work.
+This project was built with AI assistance (Claude via Cursor) following the BMAD methodology. AI artifacts are committed in `.claude/`, `.cursor/`, `.opencode/`, and `_bmad/`.
 
-Undocumented deviations read as accidents. Documented deviations read as judgment.
+**Where AI helped most:**
+- Generating the initial story files with precise acceptance criteria, architecture references, and cross-story dependency analysis
+- Scaffolding the rAF accumulator loop following the architecture §5.2 pseudocode precisely
+- Systematic code review catching issues like missing `ResizeObserver` and unbounded catch-up ticks
 
-## Things to avoid
+**Where I pushed back on AI:**
+- AI initially suggested `setInterval` for simplicity — rejected per architecture §5.2 and PRD R7
+- AI proposed extracting Canvas into a separate component early — deferred to keep the reducer dispatch accessible without prop-drilling
+- AI wanted to add Zustand for "future-proofing" — rejected as over-engineering for the current state surface
 
-Direct, so you do not waste time on the wrong things:
+## What's Next (With Another 8 Hours)
 
-- **Tests added in the last hour to hit a coverage number.** We can tell.
-- **Framework or library hopping** to demonstrate breadth. The stack is locked in `architecture.md`. Stick to it.
-- **AI-generated code committed without review or rationale.** We look for engineers who direct AI, not engineers who paste it.
-- **A `START_HERE.md` that is just `npm install`.** It is a setup guide for *your* project. Make it work from a fresh machine.
-- **Scope creep.** A polished MVP beats a broken full feature list.
-- **"I would have added tests but ran out of time."** Plan accordingly.
-- **Deleting or gitignoring `_bmad/`, `.claude/`, `.cursor/`, or `.opencode/`** because they look like tooling noise. They are evaluation deliverables.
-- **Pushing directly to `main`** on your fork. Branch protection. PRs. Green checks.
-- **Bulk-editing the planning artifacts** to "fix" things. If you disagree with something there, deviate in your implementation and document the deviation. The artifacts are the baseline we evaluate against.
+1. **Web Worker for simulation** — Move `step()` off the main thread with `transferList` for the `Uint8Array` buffer. The pure-function sim and flat array make this a clean lift.
+2. **Pattern library** — Preset patterns (Glider, Gosper Gun, Pulsar) as typed exports in `libs/sim` with a selector UI.
+3. **`ResizeObserver`** — Currently `cellSize` is computed during render and goes stale on viewport resize. Adding an observer would make the canvas truly responsive.
+4. **Tick cap in the accumulator** — After tab backgrounding, the `while` loop catches up unboundedly. Capping at ~4 ticks per frame prevents freeze on refocus.
+5. **Pattern persistence** — NestJS REST API (`GET/POST /patterns`) with SQLite via Prisma behind a `PatternRepository` interface.
 
-## Stretch goals — entirely optional
+## What I'm Not Happy With
 
-Epics 5–8 in `docs/planning-artifacts/epics.md` define stretch tiers: pattern library, performance upgrades (Web Worker plus OffscreenCanvas), pattern persistence (NestJS plus SQLite), pluggable rule sets.
-
-**Stretch goals do not affect your evaluation.** Skipping all of them does not lower your score. Doing them does not compensate for gaps in core deliverables. They exist for engineers who finish the core work and want to play.
-
-## Questions
-
-Reply to Interviewer. We respond within one business day.
-
-## Confidentiality and ownership
-
-Please keep this assessment confidential. Other candidates are working through the same brief.
-
-Your work remains yours. This is a hiring assessment, not contracted delivery.
-
-Good luck.
+- **No `ResizeObserver`** — the canvas sizing relies on render-time measurement, which drifts when the viewport changes without a state update
+- **No reducer unit tests** — the `simReducer` is pure and testable, but time went to sim library tests instead
+- **The `computeCellSize` function** lives in `page.tsx` rather than being extracted as a utility — it's doing too much in one component

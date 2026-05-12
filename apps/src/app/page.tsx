@@ -2,10 +2,10 @@
 
 import { useReducer, useRef, useEffect, useCallback } from 'react';
 import type { Grid } from '@conways-game-of-life/types';
-import { createGrid, toggleCell, getCell, step, randomizeGrid } from '@conways-game-of-life/sim';
+import { createGrid, toggleCell, getCell, randomizeGrid } from '@conways-game-of-life/sim';
 import { Play, Pause, SkipForward, Trash2, Shuffle, Gauge } from 'lucide-react';
 import { GridSizeForm } from './components/GridSizeForm';
-import { useSimulationLoop } from './hooks/useSimulationLoop';
+import { useWorkerSimulationLoop } from './hooks/useWorkerSimulationLoop';
 
 const DEFAULT_WIDTH = 30;
 const DEFAULT_HEIGHT = 30;
@@ -20,7 +20,7 @@ interface SimState {
 
 type SimAction =
   | { type: 'resize'; width: number; height: number }
-  | { type: 'tick' }
+  | { type: 'workerTick'; grid: Grid }
   | { type: 'toggleCell'; x: number; y: number }
   | { type: 'clear' }
   | { type: 'randomize' }
@@ -40,10 +40,10 @@ function simReducer(state: SimState, action: SimAction): SimState {
       return { ...state, running: action.running };
     case 'setGenPerSec':
       return { ...state, genPerSec: action.genPerSec };
-    case 'tick':
+    case 'workerTick':
       return {
         ...state,
-        grid: step(state.grid),
+        grid: action.grid,
         genCount: state.genCount + 1,
       };
     case 'toggleCell':
@@ -103,8 +103,16 @@ export default function GamePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleTick = useCallback(() => dispatch({ type: 'tick' }), []);
-  useSimulationLoop(running, genPerSec, handleTick);
+  const handleWorkerTick = useCallback(
+    (nextGrid: Grid) => dispatch({ type: 'workerTick', grid: nextGrid }),
+    []
+  );
+  const { stepOnce } = useWorkerSimulationLoop(
+    running,
+    genPerSec,
+    grid,
+    handleWorkerTick
+  );
 
   const cellSize = containerRef.current
     ? computeCellSize(
@@ -208,6 +216,8 @@ export default function GamePage() {
           <canvas
             ref={canvasRef}
             data-testid="grid-canvas"
+            role="img"
+            aria-label={`Game of Life grid, ${grid.width} columns by ${grid.height} rows, generation ${genCount}`}
             width={canvasWidth}
             height={canvasHeight}
             onPointerDown={handleCanvasPointerDown}
@@ -251,7 +261,7 @@ export default function GamePage() {
                 data-testid="step-btn"
                 aria-label="Step one generation"
                 disabled={running}
-                onClick={() => dispatch({ type: 'tick' })}
+                onClick={stepOnce}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-neutral-100 backdrop-blur-sm hover:bg-white/15 disabled:text-neutral-500 disabled:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
               >
                 <SkipForward size={14} />
@@ -302,7 +312,7 @@ export default function GamePage() {
                 aria-valuemin={1}
                 aria-valuemax={60}
                 aria-valuenow={genPerSec}
-                className="w-full accent-cyan-400"
+                className="w-full accent-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
               />
               <span
                 data-testid="speed-value"
