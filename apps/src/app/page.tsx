@@ -2,8 +2,8 @@
 
 import { useReducer, useRef, useEffect, useCallback } from 'react';
 import type { Grid } from '@conways-game-of-life/types';
-import { createGrid, toggleCell, getCell, step } from '@conways-game-of-life/sim';
-import { Play, Pause, SkipForward } from 'lucide-react';
+import { createGrid, toggleCell, getCell, step, randomizeGrid } from '@conways-game-of-life/sim';
+import { Play, Pause, SkipForward, Trash2, Shuffle, Gauge } from 'lucide-react';
 import { GridSizeForm } from './components/GridSizeForm';
 import { useSimulationLoop } from './hooks/useSimulationLoop';
 
@@ -55,6 +55,13 @@ function simReducer(state: SimState, action: SimAction): SimState {
       return {
         ...state,
         grid: createGrid(state.grid.width, state.grid.height),
+        running: false,
+        genCount: 0,
+      };
+    case 'randomize':
+      return {
+        ...state,
+        grid: randomizeGrid(state.grid),
         running: false,
         genCount: 0,
       };
@@ -176,7 +183,7 @@ export default function GamePage() {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-800 px-4 py-3 lg:px-6">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 bg-white/5 px-4 py-3 backdrop-blur-lg lg:px-6">
         <h1 className="text-lg font-semibold tracking-tight">
           Conway&apos;s Game of Life
         </h1>
@@ -211,7 +218,7 @@ export default function GamePage() {
 
         {/* Controls sidebar */}
         <aside className="flex w-full flex-col gap-4 lg:w-64 lg:shrink-0">
-          <section>
+          <section className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-lg">
             <h2 className="mb-2 text-sm font-medium text-neutral-400">
               Grid Size
             </h2>
@@ -222,7 +229,7 @@ export default function GamePage() {
             />
           </section>
 
-          <section>
+          <section className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-lg">
             <h2 className="mb-2 text-sm font-medium text-neutral-400">
               Controls
             </h2>
@@ -234,7 +241,7 @@ export default function GamePage() {
                 onClick={() =>
                   dispatch({ type: 'setRunning', running: !running })
                 }
-                className="inline-flex items-center gap-1.5 rounded bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-cyan-600/80 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm hover:bg-cyan-500/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
               >
                 {running ? <Pause size={14} /> : <Play size={14} />}
                 {running ? 'Pause' : 'Play'}
@@ -245,40 +252,66 @@ export default function GamePage() {
                 aria-label="Step one generation"
                 disabled={running}
                 onClick={() => dispatch({ type: 'tick' })}
-                className="inline-flex items-center gap-1.5 rounded bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 hover:bg-neutral-700 disabled:text-neutral-500 disabled:hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-neutral-100 backdrop-blur-sm hover:bg-white/15 disabled:text-neutral-500 disabled:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
               >
                 <SkipForward size={14} />
                 Step
               </button>
               <button
                 type="button"
-                disabled
-                className="rounded bg-neutral-800 px-3 py-1 text-sm text-neutral-500"
+                data-testid="clear-btn"
+                aria-label="Clear grid"
+                onClick={() => dispatch({ type: 'clear' })}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-neutral-100 backdrop-blur-sm hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
               >
+                <Trash2 size={14} />
                 Clear
               </button>
               <button
                 type="button"
-                disabled
-                className="rounded bg-neutral-800 px-3 py-1 text-sm text-neutral-500"
+                data-testid="randomize-btn"
+                aria-label="Randomize grid"
+                onClick={() => dispatch({ type: 'randomize' })}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-neutral-100 backdrop-blur-sm hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
               >
-                Random
+                <Shuffle size={14} />
+                Randomize
               </button>
             </div>
           </section>
 
-          <section>
+          <section className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-lg">
             <h2 className="mb-2 text-sm font-medium text-neutral-400">
               Speed
             </h2>
-            <input
-              type="range"
-              min={1}
-              max={60}
-              disabled
-              aria-label="Generations per second"
-              className="w-full accent-cyan-400 disabled:opacity-40"
-            />
+            <div className="flex items-center gap-3">
+              <Gauge size={14} className="shrink-0 text-neutral-400" />
+              <input
+                type="range"
+                data-testid="speed-slider"
+                min={1}
+                max={60}
+                value={genPerSec}
+                onChange={(e) =>
+                  dispatch({
+                    type: 'setGenPerSec',
+                    genPerSec: Number(e.target.value),
+                  })
+                }
+                aria-label="Generations per second"
+                aria-valuemin={1}
+                aria-valuemax={60}
+                aria-valuenow={genPerSec}
+                className="w-full accent-cyan-400"
+              />
+              <span
+                data-testid="speed-value"
+                className="shrink-0 min-w-[4ch] text-right font-mono text-sm text-cyan-400"
+              >
+                {genPerSec}
+              </span>
+              <span className="shrink-0 text-xs text-neutral-500">gen/s</span>
+            </div>
           </section>
         </aside>
       </main>
