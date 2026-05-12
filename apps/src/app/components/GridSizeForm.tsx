@@ -110,7 +110,8 @@ export function GridSizeForm({
       <button
         type="submit"
         data-testid="resize-btn"
-        className="rounded bg-cyan-600 px-3 py-1 text-sm font-medium text-white hover:bg-cyan-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+        aria-label="Resize grid"
+        className="rounded-lg border border-cyan-500/20 bg-cyan-600/80 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm hover:bg-cyan-500/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
       >
         Resize
       </button>

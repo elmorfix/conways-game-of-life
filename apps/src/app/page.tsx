@@ -208,6 +208,8 @@ export default function GamePage() {
           <canvas
             ref={canvasRef}
             data-testid="grid-canvas"
+            role="img"
+            aria-label={`Game of Life grid, ${grid.width} columns by ${grid.height} rows, generation ${genCount}`}
             width={canvasWidth}
             height={canvasHeight}
             onPointerDown={handleCanvasPointerDown}
@@ -302,7 +304,7 @@ export default function GamePage() {
                 aria-valuemin={1}
                 aria-valuemax={60}
                 aria-valuenow={genPerSec}
-                className="w-full accent-cyan-400"
+                className="w-full accent-cyan-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
               />
               <span
                 data-testid="speed-value"
